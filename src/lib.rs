@@ -2,33 +2,14 @@
 
 use std::fmt::Debug;
 
+/// FRAMEWORK LOGIC TRAIT AND IMPLEMENTATION: 
+/// 
 // Single trait for all operations
 trait Operation<N> :  Debug {
     fn apply(&self) -> N;
     
     fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
         None
-    }
-}
-
-#[derive(Debug)]
-struct DoubleOp<N>(N);
-
-// Base implementation for all types with default methods
-impl<N> Operation<N> for DoubleOp<N> where N: std::ops::Add<Output=N> + Copy + Debug {
-    default fn apply(&self) -> N {
-        self.0 + self.0
-    }
-    
-    default fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
-        None
-    }
-}
-
-// Implementation for Operation<f32> that specializes the discretize method
-impl Operation<f32> for DoubleOp<f32> {
-    fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
-        Some(Box::new(DoubleOp(self.0.abs() as u32)))
     }
 }
 
@@ -51,6 +32,29 @@ impl OpTrace<u32> {
         println!("Proving OpTrace: {:?}", self.ops);
     }
 }
+/// 
+/// USER DEFINED IMPLEMENTATION
+#[derive(Debug)]
+struct DoubleOp<N>(N);
+
+// Base implementation for all types with default methods
+impl<N> Operation<N> for DoubleOp<N> where N: std::ops::Add<Output=N> + Copy + Debug {
+    default fn apply(&self) -> N {
+        self.0 + self.0
+    }
+    
+    default fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
+        None
+    }
+}
+
+// Implementation for Operation<f32> that specializes the discretize method
+impl Operation<f32> for DoubleOp<f32> {
+    fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
+        Some(Box::new(DoubleOp(self.0.abs() as u32)))
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
