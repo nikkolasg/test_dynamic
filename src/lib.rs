@@ -1,9 +1,9 @@
 #![feature(min_specialization)]
 
+// Single trait for all operations
 trait Operation<N> {
     fn apply(&self) -> N;
     
-    // Default implementation for discretize
     fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
         None
     }
@@ -11,16 +11,10 @@ trait Operation<N> {
 
 struct DoubleOp<N>(N);
 
-impl<N> DoubleOp<N> where N: std::ops::Add<Output=N> + Copy {
-    fn generic_op(&self) -> N {
-        self.0 + self.0
-    }
-}
-
-// Generic implementation for all N
+// Base implementation for all types with default methods
 impl<N> Operation<N> for DoubleOp<N> where N: std::ops::Add<Output=N> + Copy {
     default fn apply(&self) -> N {
-        self.generic_op()
+        self.0 + self.0
     }
     
     default fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
@@ -28,22 +22,10 @@ impl<N> Operation<N> for DoubleOp<N> where N: std::ops::Add<Output=N> + Copy {
     }
 }
 
-// Specific implementation for f32
-impl DoubleOp<f32> {
-    // Helper method for discretizing
-    fn discretize_to_u32(&self) -> Box<dyn Operation<u32>> {
-        Box::new(DoubleOp(self.0.abs() as u32))
-    }
-}
-
-// Override the discretize method for the f32 version
+// Implementation for Operation<f32> that specializes the discretize method
 impl Operation<f32> for DoubleOp<f32> {
-    fn apply(&self) -> f32 {
-        self.generic_op()
-    }
-
     fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
-        Some(self.discretize_to_u32())
+        Some(Box::new(DoubleOp(self.0.abs() as u32)))
     }
 }
 
