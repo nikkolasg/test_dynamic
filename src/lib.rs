@@ -1,7 +1,9 @@
 #![feature(min_specialization)]
 
+use std::fmt::Debug;
+
 // Single trait for all operations
-trait Operation<N> {
+trait Operation<N> :  Debug {
     fn apply(&self) -> N;
     
     fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
@@ -9,10 +11,11 @@ trait Operation<N> {
     }
 }
 
+#[derive(Debug)]
 struct DoubleOp<N>(N);
 
 // Base implementation for all types with default methods
-impl<N> Operation<N> for DoubleOp<N> where N: std::ops::Add<Output=N> + Copy {
+impl<N> Operation<N> for DoubleOp<N> where N: std::ops::Add<Output=N> + Copy + Debug {
     default fn apply(&self) -> N {
         self.0 + self.0
     }
@@ -43,6 +46,12 @@ impl OpTrace<f32> {
     }
 }
 
+impl OpTrace<u32> {
+    fn prove_it(&self) {
+        println!("Proving OpTrace: {:?}", self.ops);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,5 +67,6 @@ mod tests {
         let trace = OpTrace { ops: boxed_op };
         let discrete_trace = trace.discretize();
         assert_eq!(discrete_trace.ops.apply(), 4);
+        discrete_trace.prove_it();
     }
 }
