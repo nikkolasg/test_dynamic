@@ -1,49 +1,40 @@
 #![feature(min_specialization)]
 
-trait Operation<N> {
+use std::{any::Any, fmt::Debug, marker::PhantomData};
+
+/// FRAMEWORK LOGIC TRAIT AND IMPLEMENTATION: 
+/// 
+// Single trait for all operations
+trait Operation<N>: Debug + Any {
     fn apply(&self) -> N;
     
-    // Default implementation for discretize
     fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
         None
     }
 }
 
-struct DoubleOp<N>(N);
-
-impl<N> DoubleOp<N> where N: std::ops::Add<Output=N> + Copy {
-    fn generic_op(&self) -> N {
-        self.0 + self.0
-    }
+trait ProvableOperation<Field> : Operation<u32> {
+    fn prove(&self);
 }
 
-// Generic implementation for all N
-impl<N> Operation<N> for DoubleOp<N> where N: std::ops::Add<Output=N> + Copy {
-    default fn apply(&self) -> N {
-        self.generic_op()
-    }
-    
-    default fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
-        None
-    }
+trait IntoProvable {
+    fn into_provable<Field>(&self) -> Box<dyn ProvableOperation<Field>>;
 }
 
-// Specific implementation for f32
-impl DoubleOp<f32> {
-    // Helper method for discretizing
-    fn discretize_to_u32(&self) -> Box<dyn Operation<u32>> {
-        Box::new(DoubleOp(self.0.abs() as u32))
-    }
+struct ProvableTranslator<Field> {
+    _field: PhantomData<Field>,
 }
 
-// Override the discretize method for the f32 version
-impl Operation<f32> for DoubleOp<f32> {
-    fn apply(&self) -> f32 {
-        self.generic_op()
+impl<Field> ProvableTranslator<Field> {
+    fn new() -> Self {
+        Self { _field: PhantomData }
     }
-
-    fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
-        Some(self.discretize_to_u32())
+    fn translate(op: Box<dyn Operation<u32>>) -> Box<dyn ProvableOperation<Field>> {
+        let opa = op.as_ref() as &dyn Any;
+        match opa.downcast_ref::<DoubleOp<u32>>() {
+            Some(i) => i.into_provable(),
+            None => panic!("Operation is not a DoubleOp")
+        }
     }
 }
 
@@ -61,6 +52,61 @@ impl OpTrace<f32> {
     }
 }
 
+impl OpTrace<u32> {
+    fn to_provable_trace<Field>(self) -> ProveTrace<Field>{
+        ProveTrace {  ops: ProvableTranslator::translate(self.ops) }
+    }
+}
+
+struct ProveTrace<Field> {
+    ops: Box<dyn ProvableOperation<Field>>,
+}
+/// 
+/// USER DEFINED IMPLEMENTATION
+#[derive(Debug)]
+struct DoubleOp<N>(N);
+
+// Base implementation for all types with default methods
+impl<N> Operation<N> for DoubleOp<N> 
+where 
+    N: std::ops::Add<Output = N> + Copy + Debug + 'static
+{
+    default fn apply(&self) -> N {
+        self.0 + self.0
+    }
+    
+    default fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
+        None
+    }
+}
+
+// Implementation for Operation<f32> that specializes the discretize method
+impl Operation<f32> for DoubleOp<f32> {
+    fn discretize(&self) -> Option<Box<dyn Operation<u32>>> {
+        Some(Box::new(DoubleOp(self.0.abs() as u32)))
+    }
+}
+
+impl IntoProvable for DoubleOp<u32> {
+    fn into_provable<Field>(&self) -> Box<dyn ProvableOperation<Field>> {
+        Box::new(DoubleOp(self.0))
+    }
+}
+impl<Field> ProvableOperation<Field> for DoubleOp<u32> {
+    fn prove(&self) {
+        println!("Proving DoubleOp: {:?}", self.0);
+    }
+}
+
+
+
+//impl<T> IntoProvable<u32> for Box<T> where T: IntoProvable<u32> {
+//    fn into_provable(&self) -> Box<dyn ProvableOperation<u32>> {
+//        self.as_ref().into_provable()
+//    }
+//}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +122,7 @@ mod tests {
         let trace = OpTrace { ops: boxed_op };
         let discrete_trace = trace.discretize();
         assert_eq!(discrete_trace.ops.apply(), 4);
+        let provable_trace: ProveTrace<f32> = discrete_trace.to_provable_trace();
+        provable_trace.ops.prove();
     }
 }
